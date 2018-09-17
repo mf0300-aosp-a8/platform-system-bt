@@ -46,6 +46,11 @@
 #include <hardware/bt_sdp.h>
 #include <hardware/bt_sock.h>
 
+#include <sys/socket.h>
+#include <sys/ioctl.h>
+#include <net/if.h>
+#include <linux/in.h>
+
 #include "bt_utils.h"
 #include "bta/include/bta_hf_client_api.h"
 #include "btif/include/btif_debug_btsnoop.h"
@@ -119,6 +124,42 @@ extern btmcap_test_interface_t* stack_mcap_get_interface();
 
 static bool interface_ready(void) { return bt_hal_cbacks != NULL; }
 
+static uint8_t fic_set_bt_mac_address(void)
+{
+  struct ifreq ifr;
+  int sock = 0, i = 0;
+  char buf[18];
+  FILE *pFile;
+
+  sock = socket(AF_INET, SOCK_DGRAM, IPPROTO_IP);
+  if (sock == -1) {
+    ALOGE("Fail to open socket\n");
+    return FALSE;
+  };
+
+  strcpy(ifr.ifr_name, "eth0");
+  ioctl(sock, SIOCGIFHWADDR, &ifr);
+
+  for ( i = 0 ; i < 6 ; i++ ) {
+    if( i != 5 )
+      sprintf(&buf[i*3], "%02X:", ((unsigned char*)ifr.ifr_hwaddr.sa_data)[i]);
+    else
+      sprintf(&buf[i*3], "%02X", ((unsigned char*)ifr.ifr_hwaddr.sa_data)[i] + 1);
+  }
+  buf[17]= '\0' ;
+
+  pFile = fopen("/data/misc/bluedroid/bdaddr", "w+");
+  if (pFile == NULL) {
+    ALOGE("Oh dear, something went wrong with bdaddr fopen()! %s with MAC: %s\n", strerror(errno), buf);
+    return FALSE;
+  }
+
+  fwrite(buf, 1, 18, pFile);
+  fclose(pFile);
+
+  return TRUE;
+}
+
 static bool is_profile(const char* p1, const char* p2) {
   CHECK(p1);
   CHECK(p2);
@@ -133,6 +174,11 @@ static bool is_profile(const char* p1, const char* p2) {
 
 static int init(bt_callbacks_t* callbacks) {
   LOG_INFO(LOG_TAG, "%s", __func__);
+
+#if USE_FIC_BT_MAC_METHOD == TRUE
+  if (fic_set_bt_mac_address())
+  ALOGI("Use bt mac address as eth0 mac +1");
+#endif
 
   if (interface_ready()) return BT_STATUS_DONE;
 
