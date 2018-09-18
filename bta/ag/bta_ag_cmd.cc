@@ -1,6 +1,6 @@
 /******************************************************************************
  *
- *  Copyright (C) 2004-2012 Broadcom Corporation
+ *  Copyright 2004-2012 Broadcom Corporation
  *
  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  you may not use this file except in compliance with the License.
@@ -18,9 +18,9 @@
 
 #define LOG_TAG "bta_ag_cmd"
 
-#include <ctype.h>
-#include <stdio.h>
-#include <string.h>
+#include <cctype>
+#include <cstdio>
+#include <cstring>
 
 #include "bt_common.h"
 #include "bt_target.h"
@@ -30,6 +30,7 @@
 #include "bta_ag_int.h"
 #include "bta_api.h"
 #include "bta_sys.h"
+#include "log/log.h"
 #include "osi/include/log.h"
 #include "osi/include/osi.h"
 #include "port_api.h"
@@ -321,39 +322,39 @@ static void bta_ag_send_ind(tBTA_AG_SCB* p_scb, uint16_t id, uint16_t value,
   /* Ensure we do not send duplicate indicators if not requested by app */
   /* If it was requested by app, transmit CIEV even if it is duplicate. */
   if (id == BTA_AG_IND_CALL) {
-    if ((value == p_scb->call_ind) && (on_demand == false)) return;
+    if ((value == p_scb->call_ind) && (!on_demand)) return;
 
     p_scb->call_ind = (uint8_t)value;
   }
 
-  if ((id == BTA_AG_IND_CALLSETUP) && (on_demand == false)) {
+  if ((id == BTA_AG_IND_CALLSETUP) && (!on_demand)) {
     if (value == p_scb->callsetup_ind) return;
 
     p_scb->callsetup_ind = (uint8_t)value;
   }
 
-  if ((id == BTA_AG_IND_SERVICE) && (on_demand == false)) {
+  if ((id == BTA_AG_IND_SERVICE) && (!on_demand)) {
     if (value == p_scb->service_ind) return;
 
     p_scb->service_ind = (uint8_t)value;
   }
-  if ((id == BTA_AG_IND_SIGNAL) && (on_demand == false)) {
+  if ((id == BTA_AG_IND_SIGNAL) && (!on_demand)) {
     if (value == p_scb->signal_ind) return;
 
     p_scb->signal_ind = (uint8_t)value;
   }
-  if ((id == BTA_AG_IND_ROAM) && (on_demand == false)) {
+  if ((id == BTA_AG_IND_ROAM) && (!on_demand)) {
     if (value == p_scb->roam_ind) return;
 
     p_scb->roam_ind = (uint8_t)value;
   }
-  if ((id == BTA_AG_IND_BATTCHG) && (on_demand == false)) {
+  if ((id == BTA_AG_IND_BATTCHG) && (!on_demand)) {
     if (value == p_scb->battchg_ind) return;
 
     p_scb->battchg_ind = (uint8_t)value;
   }
 
-  if ((id == BTA_AG_IND_CALLHELD) && (on_demand == false)) {
+  if ((id == BTA_AG_IND_CALLHELD) && (!on_demand)) {
     /* call swap could result in sending callheld=1 multiple times */
     if ((value != 1) && (value == p_scb->callheld_ind)) return;
 
@@ -378,23 +379,23 @@ static void bta_ag_send_ind(tBTA_AG_SCB* p_scb, uint16_t id, uint16_t value,
  * Returns          true if parsed ok, false otherwise.
  *
  ******************************************************************************/
-static bool bta_ag_parse_cmer(char* p_s, bool* p_enabled) {
+static bool bta_ag_parse_cmer(char* p_s, char* p_end, bool* p_enabled) {
   int16_t n[4] = {-1, -1, -1, -1};
   int i;
   char* p;
 
-  for (i = 0; i < 4; i++) {
+  for (i = 0; i < 4; i++, p_s = p + 1) {
     /* skip to comma delimiter */
-    for (p = p_s; *p != ',' && *p != 0; p++)
+    for (p = p_s; p < p_end && *p != ',' && *p != 0; p++)
       ;
 
     /* get integer value */
+    if (p > p_end) {
+      android_errorWriteLog(0x534e4554, "112860487");
+      return false;
+    }
     *p = 0;
     n[i] = utl_str2int(p_s);
-    p_s = p + 1;
-    if (p_s == 0) {
-      break;
-    }
   }
 
   /* process values */
@@ -424,7 +425,6 @@ static bool bta_ag_parse_cmer(char* p_s, bool* p_enabled) {
  ******************************************************************************/
 static uint8_t bta_ag_parse_chld(UNUSED_ATTR tBTA_AG_SCB* p_scb, char* p_s) {
   uint8_t retval = 0;
-  int16_t idx = -1;
 
   if (!isdigit(p_s[0])) {
     return BTA_AG_INVALID_CHLD;
@@ -432,7 +432,7 @@ static uint8_t bta_ag_parse_chld(UNUSED_ATTR tBTA_AG_SCB* p_scb, char* p_s) {
 
   if (p_s[1] != 0) {
     /* p_idxstr++;  point to beginning of call number */
-    idx = utl_str2int(&p_s[1]);
+    int16_t idx = utl_str2int(&p_s[1]);
     if (idx != -1 && idx < 255) {
       retval = (uint8_t)idx;
     } else {
@@ -452,24 +452,27 @@ static uint8_t bta_ag_parse_chld(UNUSED_ATTR tBTA_AG_SCB* p_scb, char* p_s) {
  * Returns          Returns bitmap of supported codecs.
  *
  ******************************************************************************/
-static tBTA_AG_PEER_CODEC bta_ag_parse_bac(tBTA_AG_SCB* p_scb, char* p_s) {
+static tBTA_AG_PEER_CODEC bta_ag_parse_bac(tBTA_AG_SCB* p_scb, char* p_s,
+                                           char* p_end) {
   tBTA_AG_PEER_CODEC retval = BTA_AG_CODEC_NONE;
   uint16_t uuid_codec;
-  bool cont = false; /* Continue processing */
   char* p;
 
   while (p_s) {
     /* skip to comma delimiter */
-    for (p = p_s; *p != ',' && *p != 0; p++)
+    for (p = p_s; p < p_end && *p != ',' && *p != 0; p++)
       ;
 
-    /* get integre value */
+    /* get integer value */
+    if (p > p_end) {
+      android_errorWriteLog(0x534e4554, "112860487");
+      break;
+    }
+    bool cont = false;  // Continue processing
     if (*p != 0) {
       *p = 0;
       cont = true;
-    } else
-      cont = false;
-
+    }
     uuid_codec = utl_str2int(p_s);
     switch (uuid_codec) {
       case UUID_CODEC_CVSD:
@@ -505,13 +508,11 @@ static tBTA_AG_PEER_CODEC bta_ag_parse_bac(tBTA_AG_SCB* p_scb, char* p_s) {
  ******************************************************************************/
 
 static void bta_ag_process_unat_res(char* unat_result) {
-  uint8_t str_leng;
-  uint8_t i = 0;
   uint8_t j = 0;
   uint8_t pairs_of_nl_cr;
   char trim_data[BTA_AG_AT_MAX_LEN];
 
-  str_leng = strlen(unat_result);
+  uint8_t str_leng = strlen(unat_result);
 
   /* If no extra CR and LF, just return */
   if (str_leng < 4) return;
@@ -521,19 +522,17 @@ static void bta_ag_process_unat_res(char* unat_result) {
          unat_result[str_leng - 2] == '\r' &&
          unat_result[str_leng - 1] == '\n') {
     pairs_of_nl_cr = 1;
-    for (i = 0; i < (str_leng - 4 * pairs_of_nl_cr); i++) {
+    for (int i = 0; i < (str_leng - 4 * pairs_of_nl_cr); i++) {
       trim_data[j++] = unat_result[i + pairs_of_nl_cr * 2];
     }
     /* Add EOF */
     trim_data[j] = '\0';
     str_leng = str_leng - 4;
     strlcpy(unat_result, trim_data, str_leng + 1);
-    i = 0;
     j = 0;
 
     if (str_leng < 4) return;
   }
-  return;
 }
 
 /*******************************************************************************
@@ -548,11 +547,7 @@ static void bta_ag_process_unat_res(char* unat_result) {
  ******************************************************************************/
 bool bta_ag_inband_enabled(tBTA_AG_SCB* p_scb) {
   /* if feature is enabled and no other scbs connected */
-  if (p_scb->inband_enabled && !bta_ag_other_scb_open(p_scb)) {
-    return true;
-  } else {
-    return false;
-  }
+  return p_scb->inband_enabled && !bta_ag_other_scb_open(p_scb);
 }
 
 /*******************************************************************************
@@ -566,7 +561,7 @@ bool bta_ag_inband_enabled(tBTA_AG_SCB* p_scb) {
  *
  ******************************************************************************/
 void bta_ag_send_call_inds(tBTA_AG_SCB* p_scb, tBTA_AG_RES result) {
-  uint8_t call = p_scb->call_ind;
+  uint8_t call;
 
   /* set new call and callsetup values based on BTA_AgResult */
   size_t callsetup = bta_ag_indicator_by_result_code(result);
@@ -597,7 +592,8 @@ void bta_ag_send_call_inds(tBTA_AG_SCB* p_scb, tBTA_AG_RES result) {
  *
  ******************************************************************************/
 void bta_ag_at_hsp_cback(tBTA_AG_SCB* p_scb, uint16_t command_id,
-                         uint8_t arg_type, char* p_arg, int16_t int_arg) {
+                         uint8_t arg_type, char* p_arg, char* p_end,
+                         int16_t int_arg) {
   APPL_TRACE_DEBUG("AT cmd:%d arg_type:%d arg:%d arg:%s", command_id, arg_type,
                    int_arg, p_arg);
 
@@ -607,6 +603,13 @@ void bta_ag_at_hsp_cback(tBTA_AG_SCB* p_scb, uint16_t command_id,
   val.hdr.handle = bta_ag_scb_to_idx(p_scb);
   val.hdr.app_id = p_scb->app_id;
   val.num = (uint16_t)int_arg;
+
+  if ((p_end - p_arg + 1) >= (long)sizeof(val.str)) {
+    APPL_TRACE_ERROR("%s: p_arg is too long, send error and return", __func__);
+    bta_ag_send_error(p_scb, BTA_AG_ERR_TEXT_TOO_LONG);
+    android_errorWriteLog(0x534e4554, "112860487");
+    return;
+  }
   strlcpy(val.str, p_arg, sizeof(val.str));
 
   /* call callback with event */
@@ -750,15 +753,15 @@ static void bta_ag_bind_response(tBTA_AG_SCB* p_scb, uint8_t arg_type) {
           p_scb->local_hf_indicators[i].ind_id);
 
       /* Check whether local and peer sides support this indicator */
-      if (p_scb->local_hf_indicators[i].is_supported == true &&
-          peer_index != -1) {
+      if (p_scb->local_hf_indicators[i].is_supported && peer_index != -1) {
         /* In the format of ind, state */
         p += utl_itoa((uint16_t)p_scb->local_hf_indicators[i].ind_id, p);
         *p++ = ',';
         p += utl_itoa((uint16_t)p_scb->local_hf_indicators[i].is_enable, p);
 
         bta_ag_send_result(p_scb, BTA_AG_BIND_RES, buffer, 0);
-
+        // have to use memset here because assigning to "" will not zero
+        // initialize the rest of the buffer
         memset(buffer, 0, sizeof(buffer));
         p = buffer;
       } else {
@@ -805,8 +808,8 @@ static bool bta_ag_parse_biev_response(tBTA_AG_SCB* p_scb, tBTA_AG_VAL* val) {
   int local_index = bta_ag_find_hf_ind_by_id(
       p_scb->local_hf_indicators, BTA_AG_MAX_NUM_LOCAL_HF_IND, rcv_ind_id);
   if (local_index == -1 ||
-      p_scb->local_hf_indicators[local_index].is_supported != true ||
-      p_scb->local_hf_indicators[local_index].is_enable != true) {
+      !p_scb->local_hf_indicators[local_index].is_supported ||
+      !p_scb->local_hf_indicators[local_index].is_enable) {
     APPL_TRACE_WARNING("%s indicator id %d not supported or disabled", __func__,
                        rcv_ind_id);
     return false;
@@ -836,7 +839,7 @@ static bool bta_ag_parse_biev_response(tBTA_AG_SCB* p_scb, tBTA_AG_VAL* val) {
  *
  ******************************************************************************/
 void bta_ag_at_hfp_cback(tBTA_AG_SCB* p_scb, uint16_t cmd, uint8_t arg_type,
-                         char* p_arg, int16_t int_arg) {
+                         char* p_arg, char* p_end, int16_t int_arg) {
   tBTA_AG_VAL val;
   tBTA_AG_SCB* ag_scb;
   uint32_t i, ind_id;
@@ -856,6 +859,13 @@ void bta_ag_at_hfp_cback(tBTA_AG_SCB* p_scb, uint16_t cmd, uint8_t arg_type,
   val.hdr.status = BTA_AG_SUCCESS;
   val.num = int_arg;
   bdcpy(val.bd_addr, p_scb->peer_addr);
+
+  if ((p_end - p_arg + 1) >= (long)sizeof(val.str)) {
+    APPL_TRACE_ERROR("%s: p_arg is too long, send error and return", __func__);
+    bta_ag_send_error(p_scb, BTA_AG_ERR_TEXT_TOO_LONG);
+    android_errorWriteLog(0x534e4554, "112860487");
+    return;
+  }
   strlcpy(val.str, p_arg, sizeof(val.str));
 
   /**
@@ -1034,7 +1044,7 @@ void bta_ag_at_hfp_cback(tBTA_AG_SCB* p_scb, uint16_t cmd, uint8_t arg_type,
 
     case BTA_AG_LOCAL_EVT_CMER:
       /* if parsed ok store setting, send OK */
-      if (bta_ag_parse_cmer(p_arg, &p_scb->cmer_enabled)) {
+      if (bta_ag_parse_cmer(p_arg, p_end, &p_scb->cmer_enabled)) {
         bta_ag_send_ok(p_scb);
 
         /* if service level conn. not already open and our features and
@@ -1195,7 +1205,7 @@ void bta_ag_at_hfp_cback(tBTA_AG_SCB* p_scb, uint16_t cmd, uint8_t arg_type,
       /* store available codecs from the peer */
       if ((p_scb->peer_features & BTA_AG_PEER_FEAT_CODEC) &&
           (p_scb->features & BTA_AG_FEAT_CODEC)) {
-        p_scb->peer_codecs = bta_ag_parse_bac(p_scb, p_arg);
+        p_scb->peer_codecs = bta_ag_parse_bac(p_scb, p_arg, p_end);
         p_scb->codec_updated = true;
 
         if (p_scb->peer_codecs & BTA_AG_CODEC_MSBC) {
