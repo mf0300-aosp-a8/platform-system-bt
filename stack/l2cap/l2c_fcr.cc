@@ -38,6 +38,8 @@
 #include "l2c_int.h"
 #include "l2cdefs.h"
 
+#include "log/log.h"
+
 extern fixed_queue_t* btu_general_alarm_queue;
 
 /* Flag passed to retransmit_i_frames() when all packets should be retransmitted
