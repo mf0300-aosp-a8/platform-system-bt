@@ -634,9 +634,6 @@ void rfc_process_mx_message(tRFC_MCB* p_mcb, BT_HDR* p_buf) {
   p_rx_frame->type = *p_data++ & ~(RFCOMM_CR_MASK | RFCOMM_EA_MASK);
 
   if (!p_rx_frame->ea || !length) {
-    LOG(ERROR) << __func__
-               << ": Invalid MX frame ea=" << std::to_string(p_rx_frame->ea)
-               << ", len=" << length << ", bd_addr=" << p_mcb->bd_addr;
     osi_free(p_buf);
     return;
   }
@@ -663,8 +660,6 @@ void rfc_process_mx_message(tRFC_MCB* p_mcb, BT_HDR* p_buf) {
   }
 
   if (mx_len != length) {
-    LOG(ERROR) << __func__ << ": Bad MX frame, p_mcb=" << p_mcb
-               << ", bd_addr=" << p_mcb->bd_addr;
     osi_free(p_buf);
     return;
   }
@@ -674,8 +669,6 @@ void rfc_process_mx_message(tRFC_MCB* p_mcb, BT_HDR* p_buf) {
   switch (p_rx_frame->type) {
     case RFCOMM_MX_PN:
       if (length != RFCOMM_MX_PN_LEN) {
-        LOG(ERROR) << __func__ << ": Invalid PN length, p_mcb=" << p_mcb
-                   << ", bd_addr=" << p_mcb->bd_addr;
         break;
       }
 
@@ -692,8 +685,6 @@ void rfc_process_mx_message(tRFC_MCB* p_mcb, BT_HDR* p_buf) {
       if (!p_rx_frame->dlci || !RFCOMM_VALID_DLCI(p_rx_frame->dlci) ||
           (p_rx_frame->u.pn.mtu < RFCOMM_MIN_MTU) ||
           (p_rx_frame->u.pn.mtu > RFCOMM_MAX_MTU)) {
-        LOG(ERROR) << __func__ << ": Bad PN frame, p_mcb=" << p_mcb
-                   << ", bd_addr=" << p_mcb->bd_addr;
         break;
       }
 
