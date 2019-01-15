@@ -168,10 +168,11 @@ bool BTM_SecDeleteDevice(BD_ADDR bd_addr) {
 
   tBTM_SEC_DEV_REC* p_dev_rec = btm_find_dev(bd_addr);
   if (p_dev_rec != NULL) {
-    RawAddress bda = p_dev_rec->bd_addr;
+    BD_ADDR addr_copy;
+    memcpy(addr_copy, p_dev_rec->bd_addr, BD_ADDR_LEN);
     btm_sec_free_dev(p_dev_rec);
     /* Tell controller to get rid of the link key, if it has one stored */
-    BTM_DeleteStoredLinkKey(&bda, NULL);
+    BTM_DeleteStoredLinkKey(addr_copy, NULL);
   }
 
   return true;
