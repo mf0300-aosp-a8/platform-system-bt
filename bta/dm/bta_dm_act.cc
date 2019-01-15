@@ -3304,14 +3304,13 @@ static void bta_dm_remove_sec_dev_entry(BD_ADDR remote_bd_addr) {
   } else {
     // remote_bd_addr comes from security record, which is removed in
     // BTM_SecDeleteDevice.
-    RawAddress addr_copy = remote_bd_addr;
-    BTM_SecDeleteDevice(addr_copy);
-    /* need to remove all pending background connection */
-    BTA_GATTC_CancelOpen(0, addr_copy, false);
-    /* remove all cached GATT information */
     bt_bdaddr_t tmp_addr;
     memcpy(tmp_addr.address, remote_bd_addr, BD_ADDR_LEN);
-    BTA_GATTC_Refresh(addr_copy);
+    BTM_SecDeleteDevice(tmp_addr.address);
+    /* need to remove all pending background connection */
+    BTA_GATTC_CancelOpen(0, tmp_addr.address, false);
+    /* remove all cached GATT information */
+    BTA_GATTC_Refresh(tmp_addr);
   }
 }
 
