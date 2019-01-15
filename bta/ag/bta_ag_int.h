@@ -359,8 +359,7 @@ extern void bta_ag_at_hsp_cback(tBTA_AG_SCB* p_scb, uint16_t cmd,
 extern void bta_ag_at_hfp_cback(tBTA_AG_SCB* p_scb, uint16_t cmd,
                                 uint8_t arg_type, char* p_arg, char* p_end,
                                 int16_t int_arg);
-extern void bta_ag_at_err_cback(tBTA_AG_SCB* p_scb, bool unknown,
-                                const char* p_arg);
+extern void bta_ag_at_err_cback(tBTA_AG_SCB* p_scb, bool unknown, char* p_arg);
 extern bool bta_ag_inband_enabled(tBTA_AG_SCB* p_scb);
 extern void bta_ag_send_call_inds(tBTA_AG_SCB* p_scb, tBTA_AG_RES result);
 
