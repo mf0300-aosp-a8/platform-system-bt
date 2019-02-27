@@ -982,7 +982,7 @@ void smp_proc_id_addr(tSMP_CB* p_cb, tSMP_INT_DATA* p_data) {
   /* to use as BD_ADDR for lk derived from ltk */
   p_cb->id_addr_rcvd = true;
   p_cb->id_addr_type = pid_key.pid_key.addr_type;
-  p_cb->id_addr = pid_key.pid_key.static_addr;
+  memcpy(p_cb->id_addr, pid_key.pid_key.static_addr, BD_ADDR_LEN);
 
   /* store the ID key from peer device */
   if ((p_cb->peer_auth_req & SMP_AUTH_BOND) &&
